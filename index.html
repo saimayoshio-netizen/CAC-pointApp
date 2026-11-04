@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サバゲー部 リアルタイムランキング</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-md">
+    <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid font-bold text-amber-500 text-xl fa-trophy"></i>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 順位表</h1>
+      </div>
+      <span id="total-players-count" class="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-full border border-slate-600">参加者: 0名</span>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 mt-6 space-y-4">
+    <div class="flex justify-between items-center px-1">
+      <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider"><i class="fa-solid fa-ranking-star mr-1"></i>現在のスコア</h2>
+      <span class="text-[11px] text-slate-400">※リアルタイム更新</span>
+    </div>
+
+    <!-- Ranking Cards List -->
+    <div id="ranking-list" class="space-y-2.5">
+      <!-- Injected via JS -->
+    </div>
+  </main>
+
+  <script>
+    function render() {
+      // Fetch latest players & teams data from shared storage
+      const players = JSON.parse(localStorage.getItem('sabage_players_v6')) || [];
+      const teams = JSON.parse(localStorage.getItem('sabage_teams_v6')) || [];
+
+      document.getElementById('total-players-count').textContent = `参加者: ${players.length}名`;
+      const rankingList = document.getElementById('ranking-list');
+      rankingList.innerHTML = '';
+
+      if (players.length === 0) {
+        rankingList.innerHTML = '<div class="text-center text-slate-500 py-12 text-sm bg-slate-800 rounded-xl border border-slate-700">現在集計データはありません</div>';
+        return;
+      }
+
+      const sorted = [...players].sort((a, b) => b.points - a.points);
+      sorted.forEach((p, idx) => {
+        let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${idx + 1}</span>`;
+        if (idx === 0) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
+        if (idx === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
+        if (idx === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+
+        const team = teams.find(t => t.id === p.teamId);
+        const teamLabel = team ? `<span class="text-[10px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300 ml-2">${team.name}</span>` : '';
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between shadow-sm";
+        card.innerHTML = `
+          <div class="flex items-center space-x-3">
+            ${rankBadge}
+            <span class="font-bold text-base text-slate-100">${p.name}</span>
+            ${teamLabel}
+          </div>
+          <div class="font-black text-lg text-amber-400">
+            ${p.points} <span class="text-xs font-normal text-slate-400">pt</span>
+          </div>
+        `;
+        rankingList.appendChild(card);
+      });
+    }
+
+    // Auto Refresh every 3 seconds to keep ranking up to date
+    setInterval(render, 3000);
+    window.addEventListener('storage', render);
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サバゲー部 ポイント集計システム</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; }
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-md">
+    <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid font-bold text-amber-500 text-xl fa-crosshairs"></i>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 ポイントカウンター</h1>
+      </div>
+      <button id="reset-btn" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
+        <i class="fa-solid fa-rotate-right"></i> リセット
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 mt-4 space-y-5">
+
+    <!-- Tab Navigation (5 Tabs) -->
+    <div class="grid grid-cols-5 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 text-[11px] font-bold text-center">
+      <button id="tab-score" onclick="switchTab('score')" class="py-2.5 rounded-md bg-amber-500 text-slate-950 shadow transition">
+        <i class="fa-solid fa-plus-circle block text-sm mb-0.5"></i>加算
+      </button>
+      <button id="tab-ranking" onclick="switchTab('ranking')" class="py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition">
+        <i class="fa-solid fa-trophy block text-sm mb-0.5"></i>順位
+      </button>
+      <button id="tab-teams" onclick="switchTab('teams')" class="py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition">
+        <i class="fa-solid fa-users-gear block text-sm mb-0.5"></i>チーム
+      </button>
+      <button id="tab-members" onclick="switchTab('members')" class="py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition">
+        <i class="fa-solid fa-user-plus block text-sm mb-0.5"></i>部員
+      </button>
+      <button id="tab-settings" onclick="switchTab('settings')" class="py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition">
+        <i class="fa-solid fa-gear block text-sm mb-0.5"></i>項目設定
+      </button>
+    </div>
+
+    <!-- TAB 1: SCORE INPUT -->
+    <section id="sec-score" class="space-y-4">
+      
+      <!-- Target Mode Selector -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">1. 対象を選択</h2>
+          <div class="flex gap-2 text-xs">
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name="target-type" value="team" checked onchange="toggleTargetType()" class="accent-amber-500">
+              <span class="font-bold text-slate-200">チーム一括</span>
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name="target-type" value="individual" onchange="toggleTargetType()" class="accent-amber-500">
+              <span class="font-bold text-slate-200">個人（ユーザー）</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Team Target Select -->
+        <div id="target-team-box">
+          <select id="team-select" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white font-medium focus:outline-none focus:border-amber-500 text-sm">
+            <!-- Team Options Injected Here -->
+          </select>
+        </div>
+
+        <!-- Individual Target Select -->
+        <div id="target-indiv-box" class="hidden">
+          <select id="player-select" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white font-medium focus:outline-none focus:border-amber-500 text-sm">
+            <!-- Member Options Injected Here (Level info hidden) -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Point Buttons -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">2. ポイント項目をタップ</h2>
+        
+        <!-- Team Point Buttons -->
+        <div id="btn-group-team" class="grid grid-cols-1 gap-2.5">
+          <!-- Injected via JS -->
+        </div>
+
+        <!-- Individual Point Buttons -->
+        <div id="btn-group-indiv" class="grid grid-cols-1 gap-2.5 hidden">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+      <!-- Recent Log -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-2">
+        <h3 class="text-xs font-bold text-slate-400 uppercase">直近の入力履歴</h3>
+        <div id="recent-logs" class="space-y-1.5 text-xs text-slate-300">
+          <div class="text-slate-500 italic">履歴はありません</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: RANKING -->
+    <section id="sec-ranking" class="hidden space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="text-sm font-bold text-slate-300">個人（ユーザー）順位</h2>
+        <span id="total-players-count" class="text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded border border-slate-700">参加者: 0名</span>
+      </div>
+
+      <div id="ranking-list" class="space-y-2">
+        <!-- Ranking Cards Injected Here (Level info hidden) -->
+      </div>
+    </section>
+
+    <!-- TAB 3: TEAM MANAGEMENT -->
+    <section id="sec-teams" class="hidden space-y-4">
+      <!-- Create Team -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">新規チーム作成</h2>
+        <div class="flex gap-2">
+          <input type="text" id="new-team-name" placeholder="チーム名（例: 赤チーム）" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <button onclick="addTeam()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition">作成</button>
+        </div>
+      </div>
+
+      <!-- Teams & Assigned Members List -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-slate-400 uppercase">チーム一覧と総レベル・所属部員</h2>
+        <div id="teams-container" class="space-y-3">
+          <!-- Team Cards Injected Here (Total level shown, individual level hidden) -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: MEMBER MANAGEMENT (Admin Only View for Levels) -->
+    <section id="sec-members" class="hidden space-y-4">
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">部員の登録</h2>
+        <div class="flex gap-2">
+          <input type="text" id="new-member-name" placeholder="名前（例: 才間）" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <select id="new-member-level" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-2">
+            <option value="1">Lv.1</option>
+            <option value="2" selected>Lv.2</option>
+            <option value="3">Lv.3</option>
+            <option value="4">Lv.4</option>
+            <option value="5">Lv.5</option>
+            <option value="6">Lv.6</option>
+            <option value="7">Lv.7</option>
+            <option value="8">Lv.8</option>
+            <option value="9">Lv.9</option>
+            <option value="10">Lv.10</option>
+          </select>
+          <button onclick="addSingleMember()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3 py-2 rounded-lg text-sm transition">追加</button>
+        </div>
+        <div class="pt-2">
+          <textarea id="bulk-members" rows="3" placeholder="改行区切りで一括登録（※Lv.1で登録されます）&#10;才間&#10;永塘&#10;眞部&#10;富田" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"></textarea>
+          <button onclick="addBulkMembers()" class="mt-2 w-full bg-slate-700 hover:bg-slate-650 text-xs font-bold py-2 rounded-lg transition text-slate-200">一括登録する</button>
+        </div>
+      </div>
+
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-slate-400 uppercase">登録部員管理（管理者専用：レベル閲覧・変更）</h2>
+        <div id="members-list" class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+          <!-- Member Items Injected Here (Level visible here only) -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: POINT SETTINGS -->
+    <section id="sec-settings" class="hidden space-y-4">
+      <!-- Add Point Rule -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">新規ポイント項目の追加</h2>
+        <div class="space-y-2">
+          <select id="new-rule-target" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+            <option value="team">対象：チーム一括</option>
+            <option value="indiv" selected>対象：個人（ユーザー）</option>
+          </select>
+          <input type="text" id="new-rule-name" placeholder="項目名（例: MVP賞）" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <div class="flex gap-2">
+            <input type="number" id="new-rule-pts" placeholder="ポイント数（例: 10）" value="5" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+            <button onclick="addPointRule()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition">項目を追加</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Point Rules List -->
+      <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-xs font-bold text-slate-400 uppercase">登録済みポイント項目一覧</h2>
+        <div id="rules-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+          <!-- Rules Injected Here -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Initial State & Data Store
+    let players = JSON.parse(localStorage.getItem('sabage_players_v6')) || [];
+    let teams = JSON.parse(localStorage.getItem('sabage_teams_v6')) || [
+      { id: 'team_red', name: '赤チーム' },
+      { id: 'team_yellow', name: '黄チーム' }
+    ];
+    let globalLogs = JSON.parse(localStorage.getItem('sabage_logs_v6')) || [];
+    
+    // Default Point Rules
+    let pointRules = JSON.parse(localStorage.getItem('sabage_rules_v6')) || [
+      { id: 'r1', target: 'team', name: 'チーム勝利', pts: 10, icon: 'fa-flag', color: 'emerald' },
+      { id: 'r2', target: 'indiv', name: '勝利', pts: 10, icon: 'fa-trophy', color: 'emerald' },
+      { id: 'r3', target: 'indiv', name: 'フラッグGET', pts: 20, icon: 'fa-bullseye', color: 'amber' },
+      { id: 'r4', target: 'indiv', name: 'ラストサバイバー', pts: 5, icon: 'fa-shield-halved', color: 'blue' },
+      { id: 'r5', target: 'indiv', name: 'ファーストヒット', pts: 5, icon: 'fa-skull', color: 'rose' },
+      { id: 'r6', target: 'indiv', name: '特殊ミッション', pts: 5, icon: 'fa-star', color: 'purple' }
+    ];
+
+    function saveData() {
+      localStorage.setItem('sabage_players_v6', JSON.stringify(players));
+      localStorage.setItem('sabage_teams_v6', JSON.stringify(teams));
+      localStorage.setItem('sabage_logs_v6', JSON.stringify(globalLogs));
+      localStorage.setItem('sabage_rules_v6', JSON.stringify(pointRules));
+      render();
+    }
+
+    function switchTab(tab) {
+      ['score', 'ranking', 'teams', 'members', 'settings'].forEach(t => {
+        document.getElementById(`sec-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).className = "py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition";
+      });
+
+      document.getElementById(`sec-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).className = "py-2.5 rounded-md bg-amber-500 text-slate-950 shadow transition";
+    }
+
+    function toggleTargetType() {
+      const isTeam = document.querySelector('input[name="target-type"]:checked').value === 'team';
+      document.getElementById('target-team-box').classList.toggle('hidden', !isTeam);
+      document.getElementById('target-indiv-box').classList.toggle('hidden', isTeam);
+      
+      document.getElementById('btn-group-team').classList.toggle('hidden', !isTeam);
+      document.getElementById('btn-group-indiv').classList.toggle('hidden', isTeam);
+    }
+
+    function render() {
+      // 1. Team Select Dropdown
+      const teamSelect = document.getElementById('team-select');
+      teamSelect.innerHTML = teams.length === 0 ? '<option value="">チームがありません</option>' : '';
+      teams.forEach(t => {
+        const memberCount = players.filter(p => p.teamId === t.id).length;
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.name} (${memberCount}名所属)`;
+        teamSelect.appendChild(opt);
+      });
+
+      // 2. Individual Select Dropdown (Level Hiddend)
+      const indivSelect = document.getElementById('player-select');
+      indivSelect.innerHTML = players.length === 0 ? '<option value="">部員を登録してください</option>' : '';
+      players.forEach(p => {
+        const team = teams.find(t => t.id === p.teamId);
+        const teamName = team ? ` [${team.name}]` : ' [未所属]';
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name}${teamName} (${p.points} pt)`;
+        indivSelect.appendChild(opt);
+      });
+
+      // 3. Point Buttons Render (Team & Indiv)
+      const teamBtnsContainer = document.getElementById('btn-group-team');
+      const indivBtnsContainer = document.getElementById('btn-group-indiv');
+      teamBtnsContainer.innerHTML = '';
+      indivBtnsContainer.innerHTML = '';
+
+      pointRules.forEach(rule => {
+        const btn = document.createElement('button');
+        btn.onclick = () => addPoint(rule.name, rule.pts);
+        btn.className = "flex justify-between items-center bg-slate-700 hover:bg-slate-650 active:scale-[0.98] border border-slate-600 p-3 rounded-lg transition text-left";
+        btn.innerHTML = `
+          <div>
+            <div class="font-bold text-sm"><i class="fa-solid ${rule.icon || 'fa-circle-dot'} text-${rule.color || 'amber'}-400 mr-2"></i>${rule.name}</div>
+            <div class="text-xs text-slate-400">${rule.target === 'team' ? 'チームメンバー全員に付与' : '個人に付与'}</div>
+          </div>
+          <span class="bg-${rule.color || 'amber'}-500/20 text-${rule.color || 'amber'}-400 font-extrabold px-3 py-1 rounded-full text-sm">+${rule.pts} pt</span>
+        `;
+
+        if(rule.target === 'team') {
+          teamBtnsContainer.appendChild(btn);
+        } else {
+          indivBtnsContainer.appendChild(btn);
+        }
+      });
+
+      // 4. Ranking List (Level Hidden)
+      const rankingList = document.getElementById('ranking-list');
+      rankingList.innerHTML = '';
+      document.getElementById('total-players-count').textContent = `参加者: ${players.length}名`;
+
+      if(players.length === 0) {
+        rankingList.innerHTML = '<div class="text-center text-slate-500 py-8 text-sm">部員が登録されていません</div>';
+      } else {
+        const sorted = [...players].sort((a,b) => b.points - a.points);
+        sorted.forEach((p, idx) => {
+          let rankBadge = `<span class="w-6 h-6 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${idx + 1}</span>`;
+          if(idx === 0) rankBadge = `<span class="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow">1</span>`;
+          if(idx === 1) rankBadge = `<span class="w-6 h-6 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
+          if(idx === 2) rankBadge = `<span class="w-6 h-6 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+
+          const team = teams.find(t => t.id === p.teamId);
+          const teamLabel = team ? `<span class="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 ml-1.5">${team.name}</span>` : '';
+
+          const card = document.createElement('div');
+          card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center justify-between";
+          card.innerHTML = `
+            <div class="flex items-center space-x-2">
+              ${rankBadge}
+              <span class="font-bold text-sm text-slate-100">${p.name}</span>
+              ${teamLabel}
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="font-black text-base text-amber-400">${p.points} <span class="text-xs font-normal text-slate-400">pt</span></span>
+              <button onclick="adjustPoint('${p.id}', -5)" class="text-slate-500 hover:text-rose-400 px-1 text-xs"><i class="fa-solid fa-minus"></i></button>
+              <button onclick="adjustPoint('${p.id}', 5)" class="text-slate-500 hover:text-emerald-400 px-1 text-xs"><i class="fa-solid fa-plus"></i></button>
+            </div>
+          `;
+          rankingList.appendChild(card);
+        });
+      }
+
+      // 5. Team Management Render (Total level visible, individual level hidden)
+      const teamsContainer = document.getElementById('teams-container');
+      teamsContainer.innerHTML = '';
+      if(teams.length === 0) {
+        teamsContainer.innerHTML = '<div class="text-slate-500 italic text-xs">チームが登録されていません</div>';
+      } else {
+        teams.forEach(t => {
+          const teamMembers = players.filter(p => p.teamId === t.id);
+          const totalLevel = teamMembers.reduce((sum, m) => sum + (parseInt(m.level) || 1), 0);
+
+          const card = document.createElement('div');
+          card.className = "bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-2";
+          
+          let membersHTML = teamMembers.map(m => `
+            <span class="inline-flex items-center gap-1 bg-slate-800 text-slate-200 text-xs px-2 py-1 rounded border border-slate-700">
+              ${m.name}
+              <button onclick="assignTeam('${m.id}', '')" class="text-slate-500 hover:text-rose-400 ml-1"><i class="fa-solid fa-xmark"></i></button>
+            </span>
+          `).join(' ');
+
+          if(teamMembers.length === 0) membersHTML = '<span class="text-slate-600 text-xs italic">所属メンバーなし</span>';
+
+          card.innerHTML = `
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span class="font-bold text-sm text-amber-400"><i class="fa-solid fa-users text-xs mr-1.5"></i>${t.name} (${teamMembers.length}名)</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">Total Lv.${totalLevel}</span>
+                <button onclick="deleteTeam('${t.id}')" class="text-slate-600 hover:text-rose-400 text-xs"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1.5 pt-1">${membersHTML}</div>
+          `;
+          teamsContainer.appendChild(card);
+        });
+      }
+
+      // 6. Member Management List Render (Admin Only Level Select)
+      const membersList = document.getElementById('members-list');
+      membersList.innerHTML = '';
+      if(players.length === 0) {
+        membersList.innerHTML = '<div class="text-slate-500 italic text-xs">登録部員はいません</div>';
+      } else {
+        players.forEach(p => {
+          const item = document.createElement('div');
+          item.className = "flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-800 text-xs";
+          
+          let teamOptions = `<option value="">未所属</option>` + teams.map(t => 
+            `<option value="${t.id}" ${p.teamId === t.id ? 'selected' : ''}>${t.name}</option>`
+          ).join('');
+
+          let levelOptions = [1,2,3,4,5,6,7,8,9,10].map(lvl => 
+            `<option value="${lvl}" ${(p.level || 1) === lvl ? 'selected' : ''}>Lv.${lvl}</option>`
+          ).join('');
+
+          item.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-slate-200">${p.name}</span>
+              <select onchange="updateLevel('${p.id}', this.value)" class="bg-slate-800 border border-slate-700 text-amber-400 font-bold text-[11px] rounded px-1.5 py-1">
+                ${levelOptions}
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <select onchange="assignTeam('${p.id}', this.value)" class="bg-slate-800 border border-slate-700 text-slate-300 text-[11px] rounded px-1.5 py-1">
+                ${teamOptions}
+              </select>
+              <button onclick="deleteMember('${p.id}')" class="text-slate-500 hover:text-rose-400 transition"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          `;
+          membersList.appendChild(item);
+        });
+      }
+
+      // 7. Settings: Rules List Render
+      const rulesList = document.getElementById('rules-list');
+      rulesList.innerHTML = '';
+      pointRules.forEach(rule => {
+        const rItem = document.createElement('div');
+        rItem.className = "flex justify-between items-center bg-slate-900 p-2 rounded border border-slate-800 text-xs";
+        rItem.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-400">${rule.target === 'team' ? 'チーム' : '個人'}</span>
+            <span class="font-bold text-slate-200">${rule.name}</span>
+            <span class="text-emerald-400 font-extrabold">+${rule.pts}pt</span>
+          </div>
+          <button onclick="deletePointRule('${rule.id}')" class="text-slate-500 hover:text-rose-400 transition"><i class="fa-solid fa-trash"></i></button>
+        `;
+        rulesList.appendChild(rItem);
+      });
+
+      // 8. Logs
+      const logsContainer = document.getElementById('recent-logs');
+      logsContainer.innerHTML = '';
+      if(globalLogs.length === 0) {
+        logsContainer.innerHTML = '<div class="text-slate-500 italic">履歴はありません</div>';
+      } else {
+        globalLogs.slice(0, 5).forEach(l => {
+          const logItem = document.createElement('div');
+          logItem.className = "flex justify-between border-b border-slate-700/50 pb-1";
+          logItem.innerHTML = `
+            <span><strong class="text-amber-400">${l.targetName}</strong> : ${l.reason}</span>
+            <span class="font-bold text-emerald-400">+${l.pts} pt</span>
+          `;
+          logsContainer.appendChild(logItem);
+        });
+      }
+    }
+
+    function addPoint(reason, pts) {
+      const targetType = document.querySelector('input[name="target-type"]:checked').value;
+
+      if(targetType === 'team') {
+        const teamId = document.getElementById('team-select').value;
+        if(!teamId) return alert('チームを選択してください');
+        
+        const team = teams.find(t => t.id === teamId);
+        const targetMembers = players.filter(p => p.teamId === teamId);
+        if(targetMembers.length === 0) return alert('このチームには部員が所属していません');
+
+        targetMembers.forEach(p => p.points += pts);
+
+        globalLogs.unshift({
+          targetName: `[チーム] ${team.name}`,
+          reason: `${reason} (${targetMembers.length}名全員)`,
+          pts: pts
+        });
+      } else {
+        const pid = document.getElementById('player-select').value;
+        if(!pid) return alert('部員を選択してください');
+
+        const player = players.find(p => p.id === pid);
+        if(player) {
+          player.points += pts;
+          globalLogs.unshift({
+            targetName: player.name,
+            reason: reason,
+            pts: pts
+          });
+        }
+      }
+      saveData();
+    }
+
+    function adjustPoint(pid, delta) {
+      const player = players.find(p => p.id === pid);
+      if(player) {
+        player.points = Math.max(0, player.points + delta);
+        saveData();
+      }
+    }
+
+    function addSingleMember() {
+      const input = document.getElementById('new-member-name');
+      const levelSelect = document.getElementById('new-member-level');
+      const name = input.value.trim();
+      const level = parseInt(levelSelect.value) || 1;
+      if(!name) return;
+
+      players.push({ 
+        id: 'p_' + Date.now() + Math.random().toString(36).substr(2,4), 
+        name: name, 
+        level: level, 
+        teamId: '', 
+        points: 0 
+      });
+      input.value = '';
+      saveData();
+    }
+
+    function addBulkMembers() {
+      const textarea = document.getElementById('bulk-members');
+      const names = textarea.value.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+      names.forEach(name => {
+        players.push({ 
+          id: 'p_' + Date.now() + Math.random().toString(36).substr(2,4), 
+          name: name, 
+          level: 1, 
+          teamId: '', 
+          points: 0 
+        });
+      });
+      textarea.value = '';
+      saveData();
+    }
+
+    function deleteMember(pid) {
+      if(confirm('この部員を削除しますか？')) {
+        players = players.filter(p => p.id !== pid);
+        saveData();
+      }
+    }
+
+    function updateLevel(pid, newLevel) {
+      const player = players.find(p => p.id === pid);
+      if(player) {
+        player.level = parseInt(newLevel) || 1;
+        saveData();
+      }
+    }
+
+    function addTeam() {
+      const input = document.getElementById('new-team-name');
+      const name = input.value.trim();
+      if(!name) return;
+      teams.push({ id: 'team_' + Date.now(), name: name });
+      input.value = '';
+      saveData();
+    }
+
+    function deleteTeam(teamId) {
+      if(confirm('このチームを削除しますか？（所属部員は未所属になります）')) {
+        teams = teams.filter(t => t.id !== teamId);
+        players.forEach(p => { if(p.teamId === teamId) p.teamId = ''; });
+        saveData();
+      }
+    }
+
+    function assignTeam(pid, teamId) {
+      const player = players.find(p => p.id === pid);
+      if(player) {
+        player.teamId = teamId;
+        saveData();
+      }
+    }
+
+    function addPointRule() {
+      const target = document.getElementById('new-rule-target').value;
+      const name = document.getElementById('new-rule-name').value.trim();
+      const pts = parseInt(document.getElementById('new-rule-pts').value);
+      if(!name || isNaN(pts)) return alert('項目名とポイント数を正しく入力してください');
+
+      pointRules.push({
+        id: 'r_' + Date.now(),
+        target: target,
+        name: name,
+        pts: pts,
+        icon: 'fa-star',
+        color: 'amber'
+      });
+      document.getElementById('new-rule-name').value = '';
+      saveData();
+    }
+
+    function deletePointRule(ruleId) {
+      if(confirm('このポイント項目を削除しますか？')) {
+        pointRules = pointRules.filter(r => r.id !== ruleId);
+        saveData();
+      }
+    }
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      if(confirm('【警告】すべての登録部員、チーム、ポイントをリセットして初期状態に戻しますか？')) {
+        players = [];
+        teams = [{ id: 'team_red', name: '赤チーム' }, { id: 'team_yellow', name: '黄チーム' }];
+        globalLogs = [];
+        saveData();
+      }
+    });
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>
