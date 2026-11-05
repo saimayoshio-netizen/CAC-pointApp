@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAC ポイントカウンター</title>
+<title>サバゲー部 ポイント集計システム</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -17,16 +17,15 @@
     <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center space-x-2">
         <i class="fa-solid font-bold text-amber-500 text-xl fa-crosshairs"></i>
-        <h1 class="font-black text-lg tracking-wider text-slate-100">ポイントカウンター</h1>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 ポイントカウンター</h1>
       </div>
-      <!-- 変更後：全削除リセットと、ポイントのみリセットの2つのボタンを配置 -->
       <div class="flex items-center gap-1.5">
-       <button onclick="resetPointsOnly()" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
-        <i class="fa-solid fa-arrow-rotate-left"></i> リセット
-       </button>
-      <button id="reset-btn" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
-        <i class="fa-solid fa-rotate-right"></i> 全削除
-      </button>
+        <button onclick="resetPointsOnly()" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
+          <i class="fa-solid fa-arrow-rotate-left"></i> Ptリセット
+        </button>
+        <button id="reset-btn" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
+          <i class="fa-solid fa-rotate-right"></i> 全削除
+        </button>
       </div>
     </div>
   </header>
@@ -287,8 +286,9 @@
     };
 
     function render() {
-      // 1. Team Select Dropdown
+      // 1. Team Select Dropdown（選択値保持機能付き）
       const teamSelect = document.getElementById('team-select');
+      const prevSelectedTeam = teamSelect.value;
       teamSelect.innerHTML = teams.length === 0 ? '<option value="">チームがありません</option>' : '';
       teams.forEach(t => {
         const memberCount = players.filter(p => p.teamId === t.id).length;
@@ -297,9 +297,13 @@
         opt.textContent = `${t.name} (${memberCount}名所属)`;
         teamSelect.appendChild(opt);
       });
+      if (prevSelectedTeam && teams.some(t => t.id === prevSelectedTeam)) {
+        teamSelect.value = prevSelectedTeam;
+      }
 
-      // 2. Individual Select Dropdown
+      // 2. Individual Select Dropdown（選択値保持機能付き）
       const indivSelect = document.getElementById('player-select');
+      const prevSelectedPlayer = indivSelect.value;
       indivSelect.innerHTML = players.length === 0 ? '<option value="">部員を登録してください</option>' : '';
       players.forEach(p => {
         const team = teams.find(t => t.id === p.teamId);
@@ -309,6 +313,9 @@
         opt.textContent = `${p.name}${teamName} (${p.points} pt)`;
         indivSelect.appendChild(opt);
       });
+      if (prevSelectedPlayer && players.some(p => p.id === prevSelectedPlayer)) {
+        indivSelect.value = prevSelectedPlayer;
+      }
 
       // 3. Point Buttons Render (Team & Indiv)
       const teamBtnsContainer = document.getElementById('btn-group-team');
@@ -621,6 +628,15 @@
       }
     };
 
+    window.resetPointsOnly = function() {
+      if (confirm('【確認】部員データとチーム編成はそのまま維持し、全員のポイントと履歴だけを0にリセットしますか？')) {
+        players.forEach(p => p.points = 0);
+        globalLogs = [];
+        saveData();
+        alert('ポイントを0にリセットしました。');
+      }
+    };
+
     document.getElementById('reset-btn').addEventListener('click', () => {
       if(confirm('【警告】すべての登録部員、チーム、ポイントをリセットして初期状態に戻しますか？')) {
         players = [];
@@ -630,18 +646,6 @@
       }
     });
 
-// 全員のポイントと履歴だけを0にクリアする関数
-window.resetPointsOnly = function() {
-  if (confirm('【確認】部員データとチーム編成はそのまま維持し、全員のポイントと履歴だけを0にリセットしますか？')) {
-    // 全部員のポイントを0にする
-    players.forEach(p => p.points = 0);
-    // 履歴をクリア
-    globalLogs = [];
-    // Firestoreへ保存（リアルタイムで公開画面にも反映されます）
-    saveData();
-    alert('ポイントを0にリセットしました。');
-  }
-};
     // Firestoreのデータをリアルタイムで監視・同期
     onSnapshot(doc(db, "sabage", "mainData"), (docSnap) => {
       if (docSnap.exists()) {
@@ -655,7 +659,7 @@ window.resetPointsOnly = function() {
       }
       render();
     }, (error) => {
-      console.error("同期エラー: ", error);
+      console.error("Firestore同期エラー: ", error);
     });
   </script>
 </body>
