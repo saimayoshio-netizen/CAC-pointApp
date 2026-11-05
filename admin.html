@@ -17,7 +17,7 @@
     <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center space-x-2">
         <i class="fa-solid font-bold text-amber-500 text-xl fa-crosshairs"></i>
-        <h1 class="font-black text-lg tracking-wider text-slate-100">ポイントカウンター</h1>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 ポイントカウンター</h1>
       </div>
       <div class="flex items-center gap-1.5">
         <button onclick="resetPointsOnly()" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
@@ -133,8 +133,9 @@
         <!-- 自動振り分け実行ボタン -->
         <div class="pt-2 border-t border-slate-700/60">
           <button onclick="autoAssignTeams()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow">
-            <i class="fa-solid fa-shuffle"></i> 登録部員をチームに自動振り分け（戦力・人数均等）
+            <i class="fa-solid fa-shuffle"></i> 参加チェックのある部員のみ自動振り分け
           </button>
+          <div class="text-[10px] text-slate-400 text-center mt-1">※「部員」タブでチェックが入っている人のみが対象になります</div>
         </div>
       </div>
 
@@ -174,7 +175,10 @@
       </div>
 
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
-        <h2 class="text-xs font-bold text-slate-400 uppercase">登録部員管理（管理者専用：レベル閲覧・変更）</h2>
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-bold text-slate-400 uppercase">登録部員管理（振分チェック・レベル・チーム変更）</h2>
+          <span class="text-[10px] text-amber-400">☑ = 振り分け対象</span>
+        </div>
         <div id="members-list" class="space-y-1.5 max-h-60 overflow-y-auto pr-1">
           <!-- Member Items Injected Here -->
         </div>
@@ -438,9 +442,15 @@
             `<option value="${lvl}" ${(p.level || 1) === lvl ? 'selected' : ''}>Lv.${lvl}</option>`
           ).join('');
 
+          // デフォルトはチェックあり（activeがundefinedまたはtrue）
+          const isChecked = p.active !== false ? 'checked' : '';
+
           item.innerHTML = `
             <div class="flex items-center gap-2">
-              <span class="font-medium text-slate-200">${escapeHtml(p.name)}</span>
+              <label class="flex items-center gap-1.5 cursor-pointer" title="自動振り分け対象にする">
+                <input type="checkbox" ${isChecked} onchange="togglePlayerActive('${p.id}', this.checked)" class="accent-amber-500 w-3.5 h-3.5 rounded">
+                <span class="font-medium ${isChecked ? 'text-slate-200' : 'text-slate-500 line-through'}">${escapeHtml(p.name)}</span>
+              </label>
               <select onchange="updateLevel('${p.id}', this.value)" class="bg-slate-800 border border-slate-700 text-amber-400 font-bold text-[11px] rounded px-1.5 py-1">
                 ${levelOptions}
               </select>
@@ -491,20 +501,23 @@
       }
     }
 
-      // チーム自動振り分けロジック（ランダムシャッフル ＋ 人数均等 ＆ レベル平準化）
+    // 🎲 チーム自動振り分けロジック（人数均等 ＆ レベル平準化）
     window.autoAssignTeams = function() {
       if (teams.length === 0) return alert('チームが作成されていません。先にチームを作成してください。');
-      if (players.length === 0) return alert('部員が登録されていません。');
+      
+      // チェックが入っているメンバー（参加予定者）だけを抽出
+      const activePlayers = players.filter(p => p.active !== false);
+      if (activePlayers.length === 0) return alert('自動振り分けの対象（チェックが入っている部員）が誰もいません。');
 
-      if (!confirm(`登録されている全部員（${players.length}名）を、現在のチーム（${teams.length}チーム）に自動でシャッフル＆均等振り分けますか？`)) {
+      if (!confirm(`チェックが入っている部員（${activePlayers.length}名）を、現在のチーム（${teams.length}チーム）に自動でシャッフル＆均等振り分けますか？`)) {
         return;
       }
 
-      // 1. まず部員リストを一度完全にランダムにシャッフルする（これにより押すたびに組み合わせが変わる）
-      let shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+      // 1. 対象部員リストをランダムにシャッフル
+      let shuffledActive = [...activePlayers].sort(() => Math.random() - 0.5);
 
-      // 2. その上で「レベルが高い順」に安定してソート（強豪が偏らないようにする調整）
-      shuffledPlayers.sort((a, b) => (parseInt(b.level) || 1) - (parseInt(a.level) || 1));
+      // 2. レベルが高い順に安定ソート
+      shuffledActive.sort((a, b) => (parseInt(b.level) || 1) - (parseInt(a.level) || 1));
 
       // 3. 各チームの状態を初期化
       const teamAllocations = teams.map(t => ({
@@ -514,24 +527,25 @@
         totalLevel: 0
       }));
 
-      // 4. グリーディー法によるレベル・人数平準化の割り当て
-      shuffledPlayers.forEach(player => {
+      // 4. グリーディー法による割り当て
+      shuffledActive.forEach(player => {
         const playerLevel = parseInt(player.level) || 1;
 
-        // ①人数が少ないチームを優先、②総レベルが低いチームを優先
+        // 「① 今の人数が一番少ないチーム」を抽出し、その中で「② 総レベルが一番低いチーム」を優先して選ぶ
         teamAllocations.sort((a, b) => {
           if (a.members.length !== b.members.length) {
-            return a.members.length - b.members.length;
+            return a.members.length - b.members.length; // 人数が少ない方優先
           }
-          return a.totalLevel - b.totalLevel;
+          return a.totalLevel - b.totalLevel; // 総レベルが低い方優先
         });
 
+        // 最も適したチームに部員をアサイン
         const targetTeam = teamAllocations[0];
         targetTeam.members.push(player.id);
         targetTeam.totalLevel += playerLevel;
       });
 
-      // 5. 各プレイヤーの teamId を更新
+      // 5. チェックが入っているプレイヤーの teamId を更新
       teamAllocations.forEach(t => {
         t.members.forEach(pid => {
           const p = players.find(x => x.id === pid);
@@ -539,9 +553,25 @@
         });
       });
 
+      // チェックが外れている（お休み等の）人はチームをクリア
+      players.forEach(p => {
+        if (p.active === false) {
+          p.teamId = '';
+        }
+      });
+
       // 6. 保存＆再描画
       saveData();
-      alert('チームを再シャッフルしました！「チーム」タブから新しい組み合わせをご確認ください。');
+      alert('チームの自動振り分けが完了しました！');
+    };
+
+    // 部員の参加チェック切り替え
+    window.togglePlayerActive = function(pid, isChecked) {
+      const player = players.find(p => p.id === pid);
+      if (player) {
+        player.active = isChecked;
+        saveData();
+      }
     };
 
     window.addPoint = function(reason, pts) {
@@ -599,7 +629,8 @@
         name: name, 
         level: level, 
         teamId: '', 
-        points: 0 
+        points: 0,
+        active: true 
       });
       input.value = '';
       saveData();
@@ -614,7 +645,8 @@
           name: name, 
           level: 1, 
           teamId: '', 
-          points: 0 
+          points: 0,
+          active: true 
         });
       });
       textarea.value = '';
