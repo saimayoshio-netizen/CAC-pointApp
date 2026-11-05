@@ -24,15 +24,43 @@
   </header>
 
   <main class="max-w-md mx-auto px-4 mt-6 space-y-4">
-    <div class="flex justify-between items-center px-1">
-      <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider"><i class="fa-solid fa-ranking-star mr-1"></i>現在のスコア</h2>
-      <span class="text-[11px] text-slate-400">※リアルタイム更新</span>
+    
+    <!-- Public Tab Navigation (Ranking / Teams) -->
+    <div class="grid grid-cols-2 gap-1 bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs font-bold text-center">
+      <button id="pub-tab-ranking" onclick="switchPubTab('ranking')" class="py-2.5 rounded-md bg-amber-500 text-slate-950 shadow transition">
+        <i class="fa-solid fa-trophy mr-1"></i>個人ランキング
+      </button>
+      <button id="pub-tab-teams" onclick="switchPubTab('teams')" class="py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition">
+        <i class="fa-solid fa-users mr-1"></i>チーム別一覧
+      </button>
     </div>
 
-    <!-- Ranking Cards List -->
-    <div id="ranking-list" class="space-y-2.5">
-      <!-- Injected via JS -->
-    </div>
+    <!-- TAB 1: RANKING -->
+    <section id="pub-sec-ranking" class="space-y-3">
+      <div class="flex justify-between items-center px-1">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider"><i class="fa-solid fa-ranking-star mr-1"></i>現在のスコア</h2>
+        <span class="text-[11px] text-slate-400">※リアルタイム更新</span>
+      </div>
+
+      <!-- Ranking Cards List -->
+      <div id="ranking-list" class="space-y-2.5">
+        <!-- Injected via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 2: TEAMS LIST -->
+    <section id="pub-sec-teams" class="hidden space-y-3">
+      <div class="flex justify-between items-center px-1">
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider"><i class="fa-solid fa-users-rectangle mr-1"></i>チーム別メンバー・合計</h2>
+        <span class="text-[11px] text-slate-400">※リアルタイム更新</span>
+      </div>
+
+      <!-- Teams Cards List -->
+      <div id="teams-public-list" class="space-y-3">
+        <!-- Injected via JS -->
+      </div>
+    </section>
+
   </main>
 
   <!-- Firebase SDK & Firestore Realtime Sync -->
@@ -55,9 +83,37 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 描画ロジック
+    // グローバルデータ保持用
+    let currentPlayers = [];
+    let currentTeams = [];
+
+    // 公開画面のタブ切り替え
+    window.switchPubTab = function(tab) {
+      ['ranking', 'teams'].forEach(t => {
+        document.getElementById(`pub-sec-${t}`).classList.add('hidden');
+        document.getElementById(`pub-tab-${t}`).className = "py-2.5 rounded-md text-slate-400 hover:text-slate-200 transition";
+      });
+
+      document.getElementById(`pub-sec-${tab}`).classList.remove('hidden');
+      document.getElementById(`pub-tab-${tab}`).className = "py-2.5 rounded-md bg-amber-500 text-slate-950 shadow transition font-bold";
+    };
+
+    function getTeamBadgeClass(color) {
+      switch(color) {
+        case 'red': return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        case 'yellow': return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+        case 'emerald': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        case 'blue': return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+        case 'purple': return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+        case 'none':
+        default: return 'bg-slate-700 text-slate-300 border-slate-600';
+      }
+    }
+
     function render(players, teams) {
-      // チェックが入っている（activeがfalseではない）メンバーの人数を計算
+      currentPlayers = players;
+      currentTeams = teams;
+
       const activePlayers = players.filter(p => p.active !== false);
       document.getElementById('total-players-count').textContent = `参加者: ${activePlayers.length}名`;
 
@@ -66,40 +122,76 @@
 
       if (players.length === 0) {
         rankingList.innerHTML = '<div class="text-center text-slate-500 py-12 text-sm bg-slate-800 rounded-xl border border-slate-700">現在集計データはありません</div>';
-        return;
+      } else {
+        const sorted = [...players].sort((a, b) => b.points - a.points);
+        let currentRank = 1;
+
+        sorted.forEach((p, idx) => {
+          if (idx > 0 && p.points < sorted[idx - 1].points) {
+            currentRank = idx + 1;
+          }
+
+          let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${currentRank}</span>`;
+          if (currentRank === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
+          if (currentRank === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
+          if (currentRank === 3) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+
+          const team = teams.find(t => t.id === p.teamId);
+          const badgeClass = team ? getTeamBadgeClass(team.color) : 'bg-slate-700 text-slate-300 border-slate-600';
+          const teamLabel = team ? `<span class="text-[10px] border px-2 py-0.5 rounded-full ${badgeClass} ml-2 font-bold">${escapeHtml(team.name)}</span>` : '';
+
+          const card = document.createElement('div');
+          card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between shadow-sm";
+          card.innerHTML = `
+            <div class="flex items-center space-x-3">
+              ${rankBadge}
+              <span class="font-bold text-base text-slate-100">${escapeHtml(p.name)}</span>
+              ${teamLabel}
+            </div>
+            <div class="font-black text-lg text-amber-400">
+              ${p.points} <span class="text-xs font-normal text-slate-400">pt</span>
+            </div>
+          `;
+          rankingList.appendChild(card);
+        });
       }
 
-      const sorted = [...players].sort((a, b) => b.points - a.points);
-      
-      let currentRank = 1;
+      // 2. チーム別一覧描画
+      const teamsPublicList = document.getElementById('teams-public-list');
+      teamsPublicList.innerHTML = '';
 
-      sorted.forEach((p, idx) => {
-        if (idx > 0 && p.points < sorted[idx - 1].points) {
-          currentRank = idx + 1;
-        }
+      if (teams.length === 0) {
+        teamsPublicList.innerHTML = '<div class="text-center text-slate-500 py-12 text-sm bg-slate-800 rounded-xl border border-slate-700">チームが登録されていません</div>';
+      } else {
+        teams.forEach(t => {
+          const teamMembers = players.filter(p => p.teamId === t.id);
+          const totalTeamPoints = teamMembers.reduce((sum, m) => sum + (m.points || 0), 0);
+          const badgeClass = getTeamBadgeClass(t.color);
 
-        let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${currentRank}</span>`;
-        if (currentRank === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
-        if (currentRank === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
-        if (currentRank === 3) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+          const teamCard = document.createElement('div');
+          teamCard.className = "bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3 shadow-sm";
+          
+          let membersHTML = teamMembers.map(m => `
+            <div class="flex justify-between items-center bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 text-xs">
+              <span class="font-bold text-slate-200">${escapeHtml(m.name)}</span>
+              <span class="font-black text-amber-400">${m.points} <span class="text-[10px] font-normal text-slate-400">pt</span></span>
+            </div>
+          `).join('');
 
-        const team = teams.find(t => t.id === p.teamId);
-        const teamLabel = team ? `<span class="text-[10px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300 ml-2">${escapeHtml(team.name)}</span>` : '';
+          if(teamMembers.length === 0) {
+            membersHTML = '<div class="text-slate-500 text-xs italic text-center py-2">所属メンバーなし</div>';
+          }
 
-        const card = document.createElement('div');
-        card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between shadow-sm";
-        card.innerHTML = `
-          <div class="flex items-center space-x-3">
-            ${rankBadge}
-            <span class="font-bold text-base text-slate-100">${escapeHtml(p.name)}</span>
-            ${teamLabel}
-          </div>
-          <div class="font-black text-lg text-amber-400">
-            ${p.points} <span class="text-xs font-normal text-slate-400">pt</span>
-          </div>
-        `;
-        rankingList.appendChild(card);
-      });
+          teamCard.innerHTML = `
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2.5">
+              <span class="font-extrabold text-sm px-3 py-1 rounded-full border ${badgeClass}"><i class="fa-solid fa-users text-xs mr-1.5"></i>${escapeHtml(t.name)}</span>
+              <span class="font-black text-emerald-400 text-sm">チーム合計: ${totalTeamPoints} pt</span>
+            </div>
+            <div class="space-y-1.5">${membersHTML}</div>
+          `;
+          teamsPublicList.appendChild(teamCard);
+        });
+      }
     }
 
     // HTMLエスケープ処理
