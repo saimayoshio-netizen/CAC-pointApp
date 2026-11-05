@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>サバゲー部 リアルタイムランキング</title>
+<title>CAC リアルタイムランキング</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -17,7 +17,7 @@
     <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center space-x-2">
         <i class="fa-solid font-bold text-amber-500 text-xl fa-trophy"></i>
-        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 順位表</h1>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">CAC 順位表</h1>
       </div>
       <span id="total-players-count" class="text-xs bg-slate-700 text-slate-300 px-2.5 py-1 rounded-full border border-slate-600">参加者: 0名</span>
     </div>
@@ -55,9 +55,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 元のデザインと描画ロジックをそのまま使用
+    // 描画ロジック
     function render(players, teams) {
-      document.getElementById('total-players-count').textContent = `参加者: ${players.length}名`;
+      // チェックが入っている（activeがfalseではない）メンバーの人数を計算
+      const activePlayers = players.filter(p => p.active !== false);
+      document.getElementById('total-players-count').textContent = `参加者: ${activePlayers.length}名`;
+
       const rankingList = document.getElementById('ranking-list');
       rankingList.innerHTML = '';
 
@@ -67,11 +70,18 @@
       }
 
       const sorted = [...players].sort((a, b) => b.points - a.points);
+      
+      let currentRank = 1;
+
       sorted.forEach((p, idx) => {
-        let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${idx + 1}</span>`;
-        if (idx === 0) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
-        if (idx === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
-        if (idx === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+        if (idx > 0 && p.points < sorted[idx - 1].points) {
+          currentRank = idx + 1;
+        }
+
+        let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${currentRank}</span>`;
+        if (currentRank === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
+        if (currentRank === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
+        if (currentRank === 3) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
 
         const team = teams.find(t => t.id === p.teamId);
         const teamLabel = team ? `<span class="text-[10px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300 ml-2">${escapeHtml(team.name)}</span>` : '';
