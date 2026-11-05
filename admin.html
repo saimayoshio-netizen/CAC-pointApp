@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CAC ポイント集計システム</title>
+<title>サバゲー部 ポイント集計システム</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -17,11 +17,11 @@
     <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
       <div class="flex items-center space-x-2">
         <i class="fa-solid font-bold text-amber-500 text-xl fa-crosshairs"></i>
-        <h1 class="font-black text-lg tracking-wider text-slate-100">ポイントカウンター</h1>
+        <h1 class="font-black text-lg tracking-wider text-slate-100">サバゲー部 ポイントカウンター</h1>
       </div>
       <div class="flex items-center gap-1.5">
         <button onclick="resetPointsOnly()" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
-          <i class="fa-solid fa-arrow-rotate-left"></i> リセット
+          <i class="fa-solid fa-arrow-rotate-left"></i> Ptリセット
         </button>
         <button id="reset-btn" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded flex items-center gap-1 transition">
           <i class="fa-solid fa-rotate-right"></i> 全削除
@@ -125,10 +125,16 @@
     <section id="sec-teams" class="hidden space-y-4">
       <!-- Create Team -->
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
-        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">新規チーム作成</h2>
+        <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider">チーム管理・自動振り分け</h2>
         <div class="flex gap-2">
           <input type="text" id="new-team-name" placeholder="チーム名（例: 赤チーム）" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
           <button onclick="addTeam()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition">作成</button>
+        </div>
+        <!-- 自動振り分け実行ボタン -->
+        <div class="pt-2 border-t border-slate-700/60">
+          <button onclick="autoAssignTeams()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-lg text-xs transition flex items-center justify-center gap-2 shadow">
+            <i class="fa-solid fa-shuffle"></i> 登録部員をチームに自動振り分け（戦力・人数均等）
+          </button>
         </div>
       </div>
 
@@ -393,7 +399,7 @@
           
           let membersHTML = teamMembers.map(m => `
             <span class="inline-flex items-center gap-1 bg-slate-800 text-slate-200 text-xs px-2 py-1 rounded border border-slate-700">
-              ${escapeHtml(m.name)}
+              ${escapeHtml(m.name)} (Lv.${m.level || 1})
               <button onclick="assignTeam('${m.id}', '')" class="text-slate-500 hover:text-rose-400 ml-1"><i class="fa-solid fa-xmark"></i></button>
             </span>
           `).join(' ');
@@ -485,7 +491,57 @@
       }
     }
 
-    // グローバル関数の組み込み
+    // 🎲 チーム自動振り分けロジック（人数均等 ＆ レベル平準化）
+    window.autoAssignTeams = function() {
+      if (teams.length === 0) return alert('チームが作成されていません。先にチームを作成してください。');
+      if (players.length === 0) return alert('部員が登録されていません。');
+
+      if (!confirm(`登録されている全部員（${players.length}名）を、現在のチーム（${teams.length}チーム）に自動で均等＆戦力均等に振り分けますか？`)) {
+        return;
+      }
+
+      // 1. 部員をレベルが高い順に並び替え（強い人から順番にバランスよく割り振るため）
+      const sortedPlayers = [...players].sort((a, b) => (parseInt(b.level) || 1) - (parseInt(a.level) || 1));
+
+      // 2. 各チームの状態を初期化
+      const teamAllocations = teams.map(t => ({
+        id: t.id,
+        name: t.name,
+        members: [],
+        totalLevel: 0
+      }));
+
+      // 3. グリーディー法によるレベル・人数平準化の割り当て
+      sortedPlayers.forEach(player => {
+        const playerLevel = parseInt(player.level) || 1;
+
+        // 「① 今の人数が一番少ないチーム」を抽出し、その中で「② 総レベルが一番低いチーム」を優先して選ぶ
+        teamAllocations.sort((a, b) => {
+          if (a.members.length !== b.members.length) {
+            return a.members.length - b.members.length; // 人数が少ない方優先
+          }
+          return a.totalLevel - b.totalLevel; // 総レベルが低い方優先
+        });
+
+        // 最も適したチームに部員をアサイン
+        const targetTeam = teamAllocations[0];
+        targetTeam.members.push(player.id);
+        targetTeam.totalLevel += playerLevel;
+      });
+
+      // 4. 各プレイヤーの teamId を更新
+      teamAllocations.forEach(t => {
+        t.members.forEach(pid => {
+          const p = players.find(x => x.id === pid);
+          if (p) p.teamId = t.id;
+        });
+      });
+
+      // 5. 保存＆再描画
+      saveData();
+      alert('チームの自動振り分けが完了しました！「チーム」タブからバランスをご確認ください。');
+    };
+
     window.addPoint = function(reason, pts) {
       const targetType = document.querySelector('input[name="target-type"]:checked').value;
 
