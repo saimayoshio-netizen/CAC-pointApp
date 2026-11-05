@@ -35,12 +35,28 @@
     </div>
   </main>
 
-  <script>
-    function render() {
-      // Fetch latest players & teams data from shared storage
-      const players = JSON.parse(localStorage.getItem('sabage_players_v6')) || [];
-      const teams = JSON.parse(localStorage.getItem('sabage_teams_v6')) || [];
+  <!-- Firebase SDK & Firestore Realtime Sync -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+    import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-9HM6DAcSHZvx6_zcdRk-Q7j9W5PnUJs",
+      authDomain: "cac-pointapp.firebaseapp.com",
+      projectId: "cac-pointapp",
+      storageBucket: "cac-pointapp.firebasestorage.app",
+      messagingSenderId: "428732442449",
+      appId: "1:428732442449:web:ea6bbbf5693736d8a89570",
+      measurementId: "G-4XXCRZT4VZ"
+    };
+
+    // Initialize Firebase & Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // 元のデザインと描画ロジックをそのまま使用
+    function render(players, teams) {
       document.getElementById('total-players-count').textContent = `参加者: ${players.length}名`;
       const rankingList = document.getElementById('ranking-list');
       rankingList.innerHTML = '';
@@ -52,87 +68,51 @@
 
       const sorted = [...players].sort((a, b) => b.points - a.points);
       sorted.forEach((p, idx) => {
-        // XSS対策：DOMを安全に構築
+        let rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center">${idx + 1}</span>`;
+        if (idx === 0) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg"><i class="fa-solid fa-crown text-xs mr-0.5"></i>1</span>`;
+        if (idx === 1) rankBadge = `<span class="w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow">2</span>`;
+        if (idx === 2) rankBadge = `<span class="w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow">3</span>`;
+
+        const team = teams.find(t => t.id === p.teamId);
+        const teamLabel = team ? `<span class="text-[10px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300 ml-2">${escapeHtml(team.name)}</span>` : '';
+
         const card = document.createElement('div');
         card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3.5 flex items-center justify-between shadow-sm";
-
-        const leftDiv = document.createElement('div');
-        leftDiv.className = "flex items-center space-x-3";
-
-        // 順位バッジ
-        const rankBadge = document.createElement('span');
-        if (idx === 0) {
-          rankBadge.className = "w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shadow-lg";
-          rankBadge.innerHTML = `<i class="fa-solid fa-crown text-xs mr-0.5"></i>1`;
-        } else if (idx === 1) {
-          rankBadge.className = "w-7 h-7 rounded-full bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center shadow";
-          rankBadge.textContent = "2";
-        } else if (idx === 2) {
-          rankBadge.className = "w-7 h-7 rounded-full bg-amber-700 text-amber-100 font-black text-xs flex items-center justify-center shadow";
-          rankBadge.textContent = "3";
-        } else {
-          rankBadge.className = "w-7 h-7 rounded-full bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center";
-          rankBadge.textContent = idx + 1;
-        }
-        leftDiv.appendChild(rankBadge);
-
-        // プレイヤー名（textContentを使用し安全にエスケープ）
-        const nameSpan = document.createElement('span');
-        nameSpan.className = "font-bold text-base text-slate-100";
-        nameSpan.textContent = p.name;
-        leftDiv.appendChild(nameSpan);
-
-        // チーム名
-        const team = teams.find(t => t.id === p.teamId);
-        if (team) {
-          const teamLabel = document.createElement('span');
-          teamLabel.className = "text-[10px] bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full text-slate-300 ml-2";
-          teamLabel.textContent = team.name;
-          leftDiv.appendChild(teamLabel);
-        }
-
-        card.appendChild(leftDiv);
-
-        // ポイント表示
-        const rightDiv = document.createElement('div');
-        rightDiv.className = "font-black text-lg text-amber-400";
-        rightDiv.textContent = p.points + " ";
-
-        const ptSpan = document.createElement('span');
-        ptSpan.className = "text-xs font-normal text-slate-400";
-        ptSpan.textContent = "pt";
-        rightDiv.appendChild(ptSpan);
-
-        card.appendChild(rightDiv);
+        card.innerHTML = `
+          <div class="flex items-center space-x-3">
+            ${rankBadge}
+            <span class="font-bold text-base text-slate-100">${escapeHtml(p.name)}</span>
+            ${teamLabel}
+          </div>
+          <div class="font-black text-lg text-amber-400">
+            ${p.points} <span class="text-xs font-normal text-slate-400">pt</span>
+          </div>
+        `;
         rankingList.appendChild(card);
       });
     }
 
-    // Auto Refresh every 3 seconds to keep ranking up to date
-    setInterval(render, 3000);
-    window.addEventListener('storage', render);
-    render();
-  </script>
+    // HTMLエスケープ処理
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
 
-  <script type="module">
-    // Import the functions you need from the SDKs you need (バージョンを安定版の 10.8.0 に修正)
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
-
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyD-9HM6DAcSHZvx6_zcdRk-Q7j9W5PnUJs",
-      authDomain: "cac-pointapp.firebaseapp.com",
-      projectId: "cac-pointapp",
-      storageBucket: "cac-pointapp.firebasestorage.app",
-      messagingSenderId: "428732442449",
-      appId: "1:428732442449:web:ea6bbbf5693736d8a89570",
-      measurementId: "G-4XXCRZT4VZ"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
+    // Firestoreのデータをリアルタイム監視
+    onSnapshot(doc(db, "sabage", "mainData"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const players = data.players || [];
+        const teams = data.teams || [];
+        render(players, teams);
+      } else {
+        render([], []);
+      }
+    }, (error) => {
+      console.error("同期エラー:", error);
+    });
   </script>
 </body>
 </html>
